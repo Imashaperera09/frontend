@@ -301,9 +301,11 @@ export default function ItemsPage() {
                                     onChange={(e) => setFormData({ ...formData, place_id: e.target.value })}
                                     className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
                                 >
-                                    <option value="">Select a location...</option>
+                                    <option value="" className="bg-[#1a1c1e] text-white">Select a location...</option>
                                     {places.map(p => (
-                                        <option key={p.id} value={p.id}>{p.cupboard?.name} - {p.name}</option>
+                                        <option key={p.id} value={p.id} className="bg-[#1a1c1e] text-white">
+                                            {p.cupboard?.name} - {p.name}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
