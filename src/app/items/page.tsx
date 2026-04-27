@@ -99,8 +99,11 @@ export default function ItemsPage() {
             }
             setShowModal(false);
             resetForm();
-        } catch (err) {
-            alert(`Failed to ${editingItemId ? 'update' : 'add'} item. Please check the inputs.`);
+        } catch (err: any) {
+            const msg = err.response?.data?.message || err.response?.data?.errors
+                ? JSON.stringify(err.response?.data?.errors || err.response?.data?.message)
+                : `Failed to ${editingItemId ? 'update' : 'add'} item.`;
+            alert(msg);
             console.error(err);
         }
     };
