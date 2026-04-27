@@ -15,35 +15,75 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 
+interface Cupboard {
+    id: number;
+    name: string;
+    location: string;
+}
+
 interface Place {
     id: number;
     name: string;
-    cupboard?: {
-        name: string;
-        location: string;
-    }
+    cupboard?: Cupboard;
 }
 
 export default function PlacesPage() {
     const [places, setPlaces] = useState<Place[]>([]);
+    const [cupboards, setCupboards] = useState<Cupboard[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    const [showCupboardModal, setShowCupboardModal] = useState(false);
+    const [showPlaceModal, setShowPlaceModal] = useState(false);
+
+    const [cupboardForm, setCupboardForm] = useState({ name: '', location: '' });
+    const [placeForm, setPlaceForm] = useState({ name: '', cupboard_id: '' });
+
     useEffect(() => {
-        const fetchPlaces = async () => {
+        const fetchData = async () => {
             try {
-                const response = await api.get('/places');
-                setPlaces(response.data);
+                const [placesRes, cupboardsRes] = await Promise.all([
+                    api.get('/places'),
+                    api.get('/cupboards')
+                ]);
+                setPlaces(placesRes.data);
+                setCupboards(cupboardsRes.data);
             } catch (err) {
-                setError('Failed to fetch places');
+                setError('Failed to fetch storage data');
                 console.error(err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchPlaces();
+        fetchData();
     }, []);
+
+    const handleCupboardSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const res = await api.post('/cupboards', cupboardForm);
+            setCupboards([...cupboards, res.data.data]);
+            setShowCupboardModal(false);
+            setCupboardForm({ name: '', location: '' });
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Failed to add cupboard');
+        }
+    };
+
+    const handlePlaceSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const res = await api.post('/places', placeForm);
+            // Refresh places to get nested cupboard data
+            const updatedPlaces = await api.get('/places');
+            setPlaces(updatedPlaces.data);
+            setShowPlaceModal(false);
+            setPlaceForm({ name: '', cupboard_id: '' });
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Failed to add shelf/place');
+        }
+    };
 
     const handleDelete = async (id: number) => {
         if (!window.confirm('Are you sure you want to delete this place? This will also delete all items assigned to it.')) return;
@@ -65,11 +105,17 @@ export default function PlacesPage() {
                     <p className="text-muted-foreground">Manage your physical storage locations, cupboards and shelves.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-secondary/80 transition-all border border-white/5">
+                    <button
+                        onClick={() => setShowCupboardModal(true)}
+                        className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-secondary/80 transition-all border border-white/5"
+                    >
                         <Plus className="w-4 h-4" />
                         Add Cupboard
                     </button>
-                    <button className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+                    <button
+                        onClick={() => setShowPlaceModal(true)}
+                        className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                    >
                         <Plus className="w-4 h-4" />
                         Add Shelf/Place
                     </button>
@@ -149,6 +195,94 @@ export default function PlacesPage() {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Add Cupboard Modal */}
+            {showCupboardModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="glass-card w-full max-w-md p-8 space-y-6 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                            <h2 className="text-xl font-bold">Add New Cupboard</h2>
+                            <button onClick={() => setShowCupboardModal(false)} className="text-muted-foreground hover:text-white transition-colors">
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleCupboardSubmit} className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-muted-foreground uppercase">Cupboard Name</label>
+                                <input
+                                    required
+                                    type="text"
+                                    value={cupboardForm.name}
+                                    onChange={(e) => setCupboardForm({ ...cupboardForm, name: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-white"
+                                    placeholder="e.g. Main Cupboard"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-muted-foreground uppercase">Physical Location</label>
+                                <input
+                                    type="text"
+                                    value={cupboardForm.location}
+                                    onChange={(e) => setCupboardForm({ ...cupboardForm, location: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-white"
+                                    placeholder="e.g. Store Room"
+                                />
+                            </div>
+                            <div className="pt-4 flex gap-3">
+                                <button type="button" onClick={() => setShowCupboardModal(false)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold">Cancel</button>
+                                <button type="submit" className="flex-[2] px-8 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90">Save Cupboard</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Shelf/Place Modal */}
+            {showPlaceModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="glass-card w-full max-w-md p-8 space-y-6 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                            <h2 className="text-xl font-bold">Add New Shelf/Place</h2>
+                            <button onClick={() => setShowPlaceModal(false)} className="text-muted-foreground hover:text-white transition-colors">
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+                        <form onSubmit={handlePlaceSubmit} className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-muted-foreground uppercase">Parent Cupboard</label>
+                                <select
+                                    required
+                                    value={placeForm.cupboard_id}
+                                    onChange={(e) => setPlaceForm({ ...placeForm, cupboard_id: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none text-white"
+                                >
+                                    <option value="" className="bg-[#1a1c1e] text-white">Select a cupboard...</option>
+                                    {cupboards.map(c => (
+                                        <option key={c.id} value={c.id} className="bg-[#1a1c1e] text-white">
+                                            {c.name} - {c.location}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-muted-foreground uppercase">Shelf / Place Name</label>
+                                <input
+                                    required
+                                    type="text"
+                                    value={placeForm.name}
+                                    onChange={(e) => setPlaceForm({ ...placeForm, name: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-white"
+                                    placeholder="e.g. Shelf A1"
+                                />
+                            </div>
+                            <div className="pt-4 flex gap-3">
+                                <button type="button" onClick={() => setShowPlaceModal(false)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold">Cancel</button>
+                                <button type="submit" className="flex-[2] px-8 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90">Save Shelf</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
         </div>

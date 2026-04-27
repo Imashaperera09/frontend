@@ -16,11 +16,14 @@ import api from '@/lib/api';
 
 interface Item {
     id: number;
-    name: string;
     code: string;
+    name: string;
     quantity: number;
-    status: string;
-    category?: string;
+    serial_number?: string;
+    description?: string;
+    image?: string;
+    place_id: number;
+    status: 'In-Store' | 'Borrowed' | 'Damaged' | 'Missing';
     place?: {
         name: string;
         cupboard?: {
@@ -51,14 +54,32 @@ export default function ItemsPage() {
     }, []);
 
     const [showModal, setShowModal] = useState(false);
+    const [editingItemId, setEditingItemId] = useState<number | null>(null);
     const [places, setPlaces] = useState<any[]>([]);
     const [formData, setFormData] = useState({
-        name: '',
         code: '',
-        quantity: 0,
+        name: '',
+        quantity: 1,
+        serial_number: '',
+        description: '',
+        image: '',
         place_id: '',
-        status: 'In-Store'
+        status: 'In-Store' as 'In-Store' | 'Borrowed' | 'Damaged' | 'Missing'
     });
+
+    const resetForm = () => {
+        setFormData({
+            code: '',
+            name: '',
+            quantity: 1,
+            serial_number: '',
+            description: '',
+            image: '',
+            place_id: '',
+            status: 'In-Store' as 'In-Store' | 'Borrowed' | 'Damaged' | 'Missing'
+        });
+        setEditingItemId(null);
+    };
 
     useEffect(() => {
         if (showModal) {
@@ -69,20 +90,34 @@ export default function ItemsPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const response = await api.post('/items', formData);
-            setItems([...items, response.data.item]);
+            if (editingItemId) {
+                const response = await api.put(`/items/${editingItemId}`, formData);
+                setItems(items.map(item => item.id === editingItemId ? response.data.item : item));
+            } else {
+                const response = await api.post('/items', formData);
+                setItems([...items, response.data.item]);
+            }
             setShowModal(false);
-            setFormData({
-                name: '',
-                code: '',
-                quantity: 0,
-                place_id: '',
-                status: 'In-Store'
-            });
+            resetForm();
         } catch (err) {
-            alert('Failed to add item. Please check the inputs.');
+            alert(`Failed to ${editingItemId ? 'update' : 'add'} item. Please check the inputs.`);
             console.error(err);
         }
+    };
+
+    const handleEdit = (item: Item) => {
+        setFormData({
+            code: item.code || '',
+            name: item.name,
+            quantity: item.quantity,
+            serial_number: item.serial_number || '',
+            description: item.description || '',
+            image: item.image || '',
+            place_id: item.place_id.toString(),
+            status: item.status
+        });
+        setEditingItemId(item.id);
+        setShowModal(true);
     };
 
     const handleDelete = async (id: number) => {
@@ -105,7 +140,7 @@ export default function ItemsPage() {
                     <p className="text-muted-foreground">Manage your inventory items, stock levels and locations.</p>
                 </div>
                 <button
-                    onClick={() => setShowModal(true)}
+                    onClick={() => { resetForm(); setShowModal(true); }}
                     className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
                 >
                     <Plus className="w-4 h-4" />
@@ -155,7 +190,7 @@ export default function ItemsPage() {
                             <thead>
                                 <tr className="border-b border-white/5 bg-white/[0.01]">
                                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Item Name</th>
-                                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category</th>
+                                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Serial Number</th>
                                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Location</th>
                                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stock</th>
                                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
@@ -170,13 +205,10 @@ export default function ItemsPage() {
                                                 <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
                                                     <Package className="w-4 h-4 text-primary" />
                                                 </div>
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium">{item.name}</span>
-                                                    <span className="text-[10px] text-muted-foreground">{item.code}</span>
-                                                </div>
+                                                <span className="font-medium">{item.name}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-muted-foreground">{item.category || 'N/A'}</td>
+                                        <td className="px-6 py-4 text-sm text-muted-foreground">{item.serial_number || 'N/A'}</td>
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-medium">{item.place?.name || 'Unknown'}</span>
@@ -196,7 +228,11 @@ export default function ItemsPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button title="Edit" className="p-2 hover:bg-white/5 rounded-lg text-muted-foreground hover:text-white transition-colors">
+                                                <button
+                                                    onClick={() => handleEdit(item)}
+                                                    title="Edit"
+                                                    className="p-2 hover:bg-white/5 rounded-lg text-muted-foreground hover:text-white transition-colors"
+                                                >
                                                     <Edit className="w-4 h-4" />
                                                 </button>
                                                 <button
@@ -231,8 +267,8 @@ export default function ItemsPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="glass-card w-full max-w-lg p-8 space-y-6 shadow-2xl animate-in zoom-in-95 duration-300">
                         <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                            <h2 className="text-xl font-bold">Add New Item</h2>
-                            <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-white transition-colors">
+                            <h2 className="text-xl font-bold">{editingItemId ? 'Edit Item' : 'Add New Item'}</h2>
+                            <button onClick={() => { setShowModal(false); resetForm(); }} className="text-muted-foreground hover:text-white transition-colors">
                                 <Plus className="w-6 h-6 rotate-45" />
                             </button>
                         </div>
@@ -258,32 +294,18 @@ export default function ItemsPage() {
                                         value={formData.code}
                                         onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                                         placeholder="e.g. ITM-001"
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-white"
                                     />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-muted-foreground uppercase">Quantity</label>
-                                    <input
-                                        required
-                                        type="number"
-                                        min="0"
-                                        value={formData.quantity || ''}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setFormData({ ...formData, quantity: val === '' ? 0 : parseInt(val) });
-                                        }}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                                    />
-                                </div>
-                                <div className="space-y-2">
                                     <label className="text-xs font-bold text-muted-foreground uppercase">Status</label>
                                     <select
                                         value={formData.status}
-                                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+                                        onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none text-white block"
                                     >
                                         <option value="In-Store" className="bg-[#1a1c1e] text-white">In-Store</option>
                                         <option value="Borrowed" className="bg-[#1a1c1e] text-white">Borrowed</option>
@@ -291,6 +313,40 @@ export default function ItemsPage() {
                                         <option value="Missing" className="bg-[#1a1c1e] text-white">Missing</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400">Total Quantity</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        required
+                                        value={formData.quantity}
+                                        onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-white"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400">Serial Number</label>
+                                    <input
+                                        type="text"
+                                        value={formData.serial_number}
+                                        onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-white"
+                                        placeholder="Optional"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm text-gray-400">Description</label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-white h-20 resize-none"
+                                    placeholder="Add item details..."
+                                />
                             </div>
 
                             <div className="space-y-2">
@@ -313,7 +369,7 @@ export default function ItemsPage() {
                             <div className="pt-4 flex gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => setShowModal(false)}
+                                    onClick={() => { setShowModal(false); resetForm(); }}
                                     className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold transition-all"
                                 >
                                     Cancel
@@ -322,7 +378,7 @@ export default function ItemsPage() {
                                     type="submit"
                                     className="flex-3 px-8 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
                                 >
-                                    Save Item
+                                    {editingItemId ? 'Save Changes' : 'Save Item'}
                                 </button>
                             </div>
                         </form>
